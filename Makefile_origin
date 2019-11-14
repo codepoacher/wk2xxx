@@ -1,0 +1,13 @@
+ARCH= arm
+#MVTOOL_PREFIX = /opt/FriendlyARM/toolschain/4.5.1/bin/arm-linux-
+MVTOOL_PREFIX = /home/wsg/openwrt/openwrt/staging_dir/toolchain-arm_gcc-andromeda/bin/arm-oe-linux-gnueabi-
+CROSS_COMPILE= $(MVTOOL_PREFIX)
+KDIR := /opt/FriendlyARM/tiny210/linux/linux-3.0.8
+TARGET				=wk2xxx_spi
+EXEC = $(TARGET)
+obj-m :=$(TARGET).o
+PWD :=$(shell pwd)
+all:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+clean:
+	rm -rf *.o *~core.depend.*.cmd *.ko *.mod.c .tmp_versions $(TARGET)
