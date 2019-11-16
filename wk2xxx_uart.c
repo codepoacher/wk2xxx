@@ -255,6 +255,7 @@ char s5pv_uart_rd(void)
 	char c = 0, d = 0;
 	loff_t pos = 0;
 	int ret;
+	int i = 10;
 	
 	old_fs = get_fs();                              
 	set_fs(KERNEL_DS);                              
@@ -269,8 +270,9 @@ char s5pv_uart_rd(void)
 			{
 				d = c;
 				break;
-			} 
-		} while(ret != 1);
+			}
+			i--;
+		} while((ret != 1)&&(i > 0));
 	} 
 	else 
 	{
@@ -281,7 +283,8 @@ char s5pv_uart_rd(void)
 			{
 				d = c;
 			} 
-		} while(ret == 1);
+			i--;
+		} while((ret == 1)&&(i > 0));
 	}
 	//ret = filp->f_op->read(filp, &c, 1, &filp->f_pos);
 	/*ret = kernel_read(filp, &c, 1, &pos);
@@ -292,7 +295,6 @@ char s5pv_uart_rd(void)
 
 	set_fs(old_fs);                                 
 	
-	//udelay(150);
 	return d;
 }
 
@@ -317,7 +319,7 @@ static int wk2xxx_write_reg(uint8_t port,uint8_t reg,uint8_t dat)
 	wk_command= (((port-1)<<4)|reg);
 	s5pv_uart_wr(wk_command);
 	s5pv_uart_wr(dat);
-	udelay(2);
+	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
 	return 0;
 }
@@ -335,6 +337,7 @@ static int wk2xxx_read_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 			*(dat+i)=s5pv_uart_rd();
 	}
 	read_fifo_flag = 0;
+	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
 
 	return 0;
@@ -349,7 +352,7 @@ static int wk2xxx_write_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 		s5pv_uart_wr(wk_command);
 		for(i=0;i<fifolen;i++)
 			s5pv_uart_wr(*(dat+i));
-		udelay(2);
+		udelay(100);
 	}
 	mutex_unlock(&wk2xxxs_wr_lock);
 	return 0;
