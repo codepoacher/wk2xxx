@@ -246,7 +246,7 @@ void s5pv_uart_wr(char c)
 	kernel_write(filp, &c, 1, &pos);
 	
 	set_fs(old_fs);      
-	udelay(150);
+	udelay(100);
 }
 static volatile char read_fifo_flag = 0;
 
@@ -294,6 +294,7 @@ char s5pv_uart_rd(void)
 	}*/
 
 	set_fs(old_fs);                                 
+	udelay(100);
 	
 	return d;
 }
@@ -307,6 +308,7 @@ static int wk2xxx_read_reg(uint8_t port,uint8_t reg,uint8_t *dat)
 	wk_command=0x40|(((port-1)<<4)|reg);
 	s5pv_uart_wr(wk_command);
 	*dat=s5pv_uart_rd();
+	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
 	
 	return 0;
