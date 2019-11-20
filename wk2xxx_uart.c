@@ -204,6 +204,9 @@ static void serial2002_tty_setspeed(struct file *f, int speed)
 		case 460800:
 			termios.c_cflag |= B460800;
 			break;                                                    
+		case 921600:
+			termios.c_cflag |= B921600;
+			break;                                                    
 		default:                                                      
 			termios.c_cflag |= B9600;                                 
 			break;                                                    
@@ -291,15 +294,9 @@ char s5pv_uart_rd(void)
 			i--;
 		} while(((ret == 1)||(j==0)) &&(i > 0));
 	}
-	//ret = filp->f_op->read(filp, &c, 1, &filp->f_pos);
-	/*ret = kernel_read(filp, &c, 1, &pos);
-	if(ret != 1)
-	{
-		printk(KERN_INFO"read_ret=%d\n",ret);
-	}*/
 	if(j == 0)
 	{
-		printk(KERN_INFO"read error,j=%d\n",j);
+		;//printk(KERN_INFO"read error,j=%d\n",j);
 	}
 
 	set_fs(old_fs); 
@@ -319,7 +316,6 @@ static int wk2xxx_read_reg(uint8_t port,uint8_t reg,uint8_t *dat)
 	s5pv_uart_wr(wk_command);
 	udelay(100);
 	*dat=s5pv_uart_rd();
-	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
 	
 	return 0;
@@ -333,7 +329,7 @@ static int wk2xxx_write_reg(uint8_t port,uint8_t reg,uint8_t dat)
 	//printk(KERN_INFO"write cmd = 0x%x, dat=%d\n",wk_command, dat);
 	s5pv_uart_wr(wk_command);
 	s5pv_uart_wr(dat);
-	udelay(100);
+	udelay(2);
 	mutex_unlock(&wk2xxxs_wr_lock);
 	return 0;
 }
@@ -347,8 +343,9 @@ static int wk2xxx_read_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 	{
 		wk_command=0xc0|(((port-1)<<4)|(fifolen-1));
 		s5pv_uart_wr(wk_command);
-		for(i=0;i<fifolen;i++)
+		for(i=0;i<fifolen;i++){
 			*(dat+i)=s5pv_uart_rd();
+		}
 	}
 	read_fifo_flag = 0;
 	mutex_unlock(&wk2xxxs_wr_lock);
@@ -363,8 +360,9 @@ static int wk2xxx_write_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 	{
 		wk_command= (0x80|((port-1)<<4)|(fifolen-1));
 		s5pv_uart_wr(wk_command);
-		for(i=0;i<fifolen;i++)
+		for(i=0;i<fifolen;i++){
 			s5pv_uart_wr(*(dat+i));
+		}
 		udelay(2);
 	}
 	mutex_unlock(&wk2xxxs_wr_lock);
@@ -1829,6 +1827,11 @@ static int __init wk2xxx_init(void)
 	udelay(100);
 
 	/*发送0x55实现wk和CPU的波特率自动匹配并验证是否匹配成功*/
+
+	//复位硬件
+	gpio_set_value(RST_PIN,1);  //设置低，和设备树相关
+	msleep(100);
+	gpio_set_value(RST_PIN,0);  //设置高
 	i=3;
 	while(i--){
 		s5pv_uart_wr(0x55);
