@@ -246,7 +246,6 @@ void s5pv_uart_wr(char c)
 	kernel_write(filp, &c, 1, &pos);
 	
 	set_fs(old_fs);      
-	udelay(100);
 }
 static volatile char read_fifo_flag = 0;
 
@@ -256,6 +255,7 @@ char s5pv_uart_rd(void)
 	loff_t pos = 0;
 	int ret;
 	int i = 10;
+	int j = 0;
 	
 	old_fs = get_fs();                              
 	set_fs(KERNEL_DS);                              
@@ -268,11 +268,12 @@ char s5pv_uart_rd(void)
 			ret = kernel_read(filp, &c, 1, &pos);
 			if(ret == 1)
 			{
+				j = 1;
 				d = c;
 				break;
 			}
 			i--;
-		} while((ret != 1)&&(i > 0));
+		} while(((ret != 1)||(j==0))&&(i > 0));
 	} 
 	else 
 	{
@@ -281,10 +282,14 @@ char s5pv_uart_rd(void)
 			ret = kernel_read(filp, &c, 1, &pos);
 			if(ret == 1)
 			{
+				j = 1;
 				d = c;
+				/*if(i != 10) {
+					printk(KERN_INFO"i=%d,d=0x%x\n",i,d);
+				}*/
 			} 
 			i--;
-		} while((ret == 1)&&(i > 0));
+		} while(((ret == 1)||(j==0)) &&(i > 0));
 	}
 	//ret = filp->f_op->read(filp, &c, 1, &filp->f_pos);
 	/*ret = kernel_read(filp, &c, 1, &pos);
@@ -292,8 +297,12 @@ char s5pv_uart_rd(void)
 	{
 		printk(KERN_INFO"read_ret=%d\n",ret);
 	}*/
+	if(j == 0)
+	{
+		printk(KERN_INFO"read error,j=%d\n",j);
+	}
 
-	set_fs(old_fs);                                 
+	set_fs(old_fs); 
 	udelay(100);
 	
 	return d;
@@ -306,7 +315,9 @@ static int wk2xxx_read_reg(uint8_t port,uint8_t reg,uint8_t *dat)
 
 	mutex_lock(&wk2xxxs_wr_lock);
 	wk_command=0x40|(((port-1)<<4)|reg);
+	//printk(KERN_INFO"read cmd=0x%x, port=%d, reg=0x%x\n",wk_command, port, reg);
 	s5pv_uart_wr(wk_command);
+	udelay(100);
 	*dat=s5pv_uart_rd();
 	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
@@ -319,6 +330,7 @@ static int wk2xxx_write_reg(uint8_t port,uint8_t reg,uint8_t dat)
 	uint8_t wk_command;
 	mutex_lock(&wk2xxxs_wr_lock);
 	wk_command= (((port-1)<<4)|reg);
+	//printk(KERN_INFO"write cmd = 0x%x, dat=%d\n",wk_command, dat);
 	s5pv_uart_wr(wk_command);
 	s5pv_uart_wr(dat);
 	udelay(100);
@@ -339,7 +351,6 @@ static int wk2xxx_read_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 			*(dat+i)=s5pv_uart_rd();
 	}
 	read_fifo_flag = 0;
-	udelay(100);
 	mutex_unlock(&wk2xxxs_wr_lock);
 
 	return 0;
@@ -354,7 +365,7 @@ static int wk2xxx_write_fifo(uint8_t port,uint8_t fifolen,uint8_t *dat)
 		s5pv_uart_wr(wk_command);
 		for(i=0;i<fifolen;i++)
 			s5pv_uart_wr(*(dat+i));
-		udelay(100);
+		udelay(2);
 	}
 	mutex_unlock(&wk2xxxs_wr_lock);
 	return 0;
@@ -459,10 +470,9 @@ static void wk2xxx_work(struct work_struct *w)
 			wk2xxx_write_reg(s->port.iobase,WK2XXX_SIER,rx);
 #ifdef _DEBUG_WK2XXX
 			wk2xxx_read_reg(s->port.iobase,WK2XXX_SIER,&rx);
-			printk(KERN_ALERT "wk2xxx_work1()----port:%d--sier:0x%x----\n",s->port.iobase,rx);
-#endif
-		}
-		/*if(work_stop_tx_flag)
+			printk(KERN_ALERT "wk2xxx_work1()----port:%d--sier:0x%x----\n",s->port.iobase,rx); 
+#endif 
+			} /*if(work_stop_tx_flag)
 		  {
 		  wk2xxx_read_reg(s->port.iobase,WK2XXX_SIER,&rx);
 		  rx &=~WK2XXX_TFTRIG_IEN;
@@ -543,6 +553,7 @@ static void wk2xxx_work(struct work_struct *w)
 	}
 	if(s->irq_fail)
 	{
+		//printk(KERN_INFO"enable_irq!!!\n");
 		s->irq_fail = 0;
 		enable_irq(s->port.irq);
 		//s->irq_fail = 0;
@@ -932,7 +943,8 @@ static void wk2xxxirq_app(struct uart_port *port)//
 	uint8_t  gier,sifr0,sifr1,sifr2,sifr3,sier1,sier0,sier2,sier3;
 #endif				
 	wk2xxx_read_reg(WK2XXX_GPORT,WK2XXX_GIFR ,dat);
-	gifr = dat[0];		
+	gifr = dat[0];	
+	//printk(KERN_INFO"gifr=%d\n",gifr);
 #ifdef _DEBUG_WK2XXX1
 	wk2xxx_read_reg(WK2XXX_GPORT,WK2XXX_GIER ,dat);
 	gier = dat[0];
@@ -1041,8 +1053,9 @@ static u_int wk2xxx_tx_empty(struct uart_port *port)// or query the tx fifo is n
 	mutex_lock(&wk2xxxs_lock);
 	if(!(s->tx_empty_flag || s->tx_empty_fail))
 	{
+		//printk(KERN_ALERT "wk2xxx_tx_empty()\n");
 		wk2xxx_read_reg(s->port.iobase,WK2XXX_FSR,&rx);
-
+		
 		while((rx & WK2XXX_TDAT)|(rx&WK2XXX_TBUSY))
 		{
 			wk2xxx_read_reg(s->port.iobase,WK2XXX_FSR,&rx);
@@ -1383,7 +1396,10 @@ static void wk2xxx_shutdown(struct uart_port *port)//
 
 	struct wk2xxx_port *s = container_of(port,struct wk2xxx_port,port);
 	if (s->suspending)
+	{
+		//printk(KERN_INFO"suspending!!!\n");	
 		return;
+	}
 	s->force_end_work = 1;
 	if (s->workqueue) 
 	{
@@ -1394,7 +1410,9 @@ static void wk2xxx_shutdown(struct uart_port *port)//
 
 	if (s->port.irq)
 	{
-		//disable_irq_nosync(s->port.irq);		
+		//printk(KERN_INFO"free_irq!!!\n");	
+		//disable_irq_nosync(s->port.irq);
+		s->irq_fail = 0; //·ÀÖ¹³öÏÖ Unbalanced enable for IRQ
 		free_irq(s->port.irq,s);
 	}
 #ifdef _DEBUG_WK2XXX
@@ -1489,7 +1507,7 @@ static void wk2xxx_termios( struct uart_port *port, struct ktermios *termios,
 	
 	//sysclk=11.0592MHZ
 	//baud =115200;
-	printk(KERN_INFO"speed=%d\n",baud);
+	//printk(KERN_INFO"speed=%d\n",baud);
 	switch (baud) {
 		case 600:
 			baud1=0x4;
@@ -1719,7 +1737,7 @@ static int wk2xxx_verify_port(struct uart_port *port, struct serial_struct *ser)
 
 
 static struct uart_ops wk2xxx_pops = {
-tx_empty:       wk2xxx_tx_empty,
+				tx_empty:       wk2xxx_tx_empty,
 				set_mctrl:      wk2xxx_set_mctrl,
 				get_mctrl:      wk2xxx_get_mctrl,
 				stop_tx:        wk2xxx_stop_tx,
