@@ -156,7 +156,7 @@ ion :1.0 Data:2014-05-20
 
 //wk2xxx hardware configuration
 #define     RST_PIN         6  //gpio1_6 
-#define 	IRQ_WK2XXX		65 //gpio_to_irq(0)
+#define 	IRQ_WK2XXX		gpio_to_irq(0)
 #define 	WK_CS_PIN 		GPIO_G11//should be GPB
 #define 	WK_CRASTAL_CLK		(3686400*2)
 #define 	WK2XXX_CS            	(GPIO_MODE_OUT | GPIO_PULLUP_DIS | VK_CS_PIN)
