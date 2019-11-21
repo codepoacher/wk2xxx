@@ -1828,24 +1828,27 @@ static int __init wk2xxx_init(void)
 
 	/*发送0x55实现wk和CPU的波特率自动匹配并验证是否匹配成功*/
 
-	//复位硬件
-	gpio_set_value(RST_PIN,1);  //设置低，和设备树相关
-	msleep(100);
-	gpio_set_value(RST_PIN,0);  //设置高
-	i=3;
-	while(i--){
+	i = 5;
+	while(i--)
+	{
+		//复位硬件
+		gpio_set_value(RST_PIN,1);  //设置低，和设备树相关
+		msleep(100);
+		gpio_set_value(RST_PIN,0);  //设置高
+
+		//匹配速率
 		s5pv_uart_wr(0x55);
-		udelay(100);
-		udelay(100);
-		udelay(100);
+		udelay(300);
+
+		//测试芯片是否正常
+		wk2xxx_read_reg(1,WK2XXX_GENA,dat);
+		if( (dat[0]&0xf0) == 0xf0 )
+			break;
+		else
+			printk(KERN_ALERT"WK2XXX_GENA=:%x\n",dat[0]);
 	}
 
-#if 1
-	wk2xxx_read_reg(1,WK2XXX_GENA,dat);
-	printk(KERN_ALERT"WK2XXX_GENA1=:%x\n",dat[0]);
-
-#endif
-//#ifdef _DEBUG_WK2XXX1
+#ifdef _DEBUG_WK2XXX1
 	i=5;
 	while(i--)
 	{
@@ -1854,7 +1857,7 @@ static int __init wk2xxx_init(void)
 		printk(KERN_ALERT"WK2XXX_GENA=:%x\n",dat[0]);
 		wk2xxx_write_reg(1,WK2XXX_GENA,i);
 	}
-//#endif	
+#endif
 
 #ifdef _DEBUG_WK2XXX1
 	printk(KERN_ALERT "wk2xxx_init()-------------out-------- \n");
